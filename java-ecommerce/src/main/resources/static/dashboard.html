@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人货场·电商实时数据大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ==================== 全局背景（图片 + 网格 + 暗角） ==================== */
+        body {
+            background-color: #05030f;
+            background-image: url('/images/background.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            color: #fff;
+            font-family: 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 中心暗角：让中间球体区域更聚焦，也让面板字更清楚 */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(ellipse at center,
+            rgba(0, 15, 40, 0.42) 0%,
+            rgba(0, 10, 30, 0.20) 45%,
+            transparent 75%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* 淡青网格（叠加在图片上，维持科技感） */
+        body::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                    linear-gradient(rgba(0, 180, 240, 0.028) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0, 180, 240, 0.028) 1px, transparent 1px);
+            background-size: 48px 48px, 48px 48px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ==================== 顶部标题栏 ==================== */
+        header {
+            height: 78px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2;
+            overflow: hidden;
+            background: linear-gradient(180deg,
+            rgba(0, 18, 50, 0.7) 0%,
+            rgba(0, 12, 35, 0.3) 60%,
+            transparent 100%);
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(0, 180, 240, 0.4) 12%,
+            rgba(0, 210, 245, 0.85) 50%,
+            rgba(0, 180, 240, 0.4) 88%,
+            transparent 100%);
+            box-shadow: 0 0 6px rgba(0, 190, 240, 0.5);
+        }
+
+        header .title {
+            font-size: 30px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            padding-left: 8px;
+            margin: 0;
+            color: #ffffff;
+            text-shadow:
+                    0 0 5px rgba(150, 220, 255, 0.7),
+                    0 0 14px rgba(0, 130, 220, 0.35);
+            position: relative;
+            z-index: 3;
+            white-space: nowrap;
+        }
+
+        header .hdeco {
+            position: absolute;
+            top: 0;
+            width: 22%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+        header .hdeco-left  { left: 18px; }
+        header .hdeco-right { right: 18px; }
+
+        header .binary {
+            position: absolute;
+            top: 14px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: rgba(110, 180, 230, 0.28);
+            white-space: nowrap;
+        }
+        header .hdeco-left  .binary { left: 0; }
+        header .hdeco-right .binary { right: 0; }
+
+        header .dots {
+            position: absolute;
+            bottom: 16px;
+            width: 80px;
+            height: 14px;
+            background-image: radial-gradient(circle, rgba(80, 180, 230, 0.5) 1px, transparent 1.3px);
+            background-size: 6px 6px;
+        }
+        header .hdeco-left  .dots { left: 0; }
+        header .hdeco-right .dots { right: 0; }
+
+        header .hline {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            width: 100%;
+            height: 44px;
+            pointer-events: none;
+            z-index: 2;
+            filter:
+                    drop-shadow(0 0 3px rgba(0, 200, 245, 0.7))
+                    drop-shadow(0 0 8px rgba(0, 130, 210, 0.3));
+        }
+
+        /* ==================== 主体三栏 ==================== */
+        .container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 1fr;
+            gap: 14px;
+            padding: 14px;
+            height: calc(100vh - 78px);
+            position: relative;
+            z-index: 2;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        /* 面板（含四角 L 形装饰） */
+        .panel {
+            flex: 1;
+            background-color: rgba(4, 12, 30, 0.78);
+            background-image:
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff),
+                    linear-gradient(#00eaff, #00eaff);
+            background-repeat: no-repeat;
+            background-size:
+                    16px 2px, 2px 16px,
+                    16px 2px, 2px 16px,
+                    16px 2px, 2px 16px,
+                    16px 2px, 2px 16px;
+            background-position:
+                    left top, left top,
+                    right top, right top,
+                    left bottom, left bottom,
+                    right bottom, right bottom;
+            border: 1px solid rgba(0, 180, 240, 0.30);
+            border-radius: 6px;
+            box-shadow: 0 0 30px rgba(0, 90, 220, 0.18) inset, 0 0 15px rgba(0, 180, 240, 0.12);
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        .panel-title {
+            font-size: 15px;
+            color: #00eaff;
+            margin-bottom: 6px;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(0, 220, 245, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            padding: 0 40px;
+        }
+        .panel-title::before {
+            content: '>>>>';
+            position: absolute;
+            left: 0;
+            color: rgba(0, 220, 245, 0.45);
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+        .panel-title::after {
+            content: '<<<<';
+            position: absolute;
+            right: 0;
+            color: rgba(0, 220, 245, 0.45);
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+
+        .chart {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+        }
+
+        /* ==================== 核心数据球 ==================== */
+        .core-panel {
+            position: relative;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .core-wrap {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #globeCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .ring-svg {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 82%;
+            max-width: 360px;
+            aspect-ratio: 1;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+            animation: spinRing 45s linear infinite;
+            pointer-events: none;
+            filter: drop-shadow(0 0 6px rgba(0, 200, 255, 0.55));
+        }
+        @keyframes spinRing {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        .tri {
+            position: absolute;
+            width: 0; height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 10px solid rgba(90, 220, 255, 0.85);
+            filter: drop-shadow(0 0 6px rgba(0, 220, 255, 0.85));
+            z-index: 3;
+        }
+        .tri-tl { top: 13%; left: 14%; transform: rotate(-45deg); }
+        .tri-tr { top: 13%; right: 14%; transform: rotate(45deg); }
+        .tri-bl { bottom: 20%; left: 14%; transform: rotate(-135deg); }
+        .tri-br { bottom: 20%; right: 14%; transform: rotate(135deg); }
+
+        .hex {
+            position: absolute;
+            top: 50%;
+            width: 46px;
+            height: 46px;
+            transform: translateY(-50%);
+            z-index: 3;
+            filter: drop-shadow(0 0 8px rgba(0, 200, 255, 0.65));
+        }
+        .hex-left  { left: 3%; }
+        .hex-right { right: 3%; }
+
+        .core-text {
+            position: relative;
+            z-index: 4;
+            text-align: center;
+            pointer-events: none;
+            padding: 14px 28px;
+            background: radial-gradient(ellipse at center,
+            rgba(4, 12, 30, 0.88) 0%,
+            rgba(4, 12, 30, 0.55) 55%,
+            rgba(4, 12, 30, 0) 100%);
+            border-radius: 16px;
+        }
+        .core-label {
+            font-size: 14px;
+            color: #a9d6ff;
+            letter-spacing: 4px;
+            margin-bottom: 4px;
+            text-shadow: 0 0 8px rgba(120, 200, 255, 0.85);
+        }
+        .core-value {
+            font-size: 40px;
+            font-weight: bold;
+            font-family: 'Consolas', 'Courier New', monospace;
+            color: #7fe9ff;
+            letter-spacing: 2px;
+            line-height: 1.05;
+            text-shadow:
+                    0 0 10px rgba(0, 220, 255, 0.95),
+                    0 0 26px rgba(0, 140, 230, 0.7),
+                    0 0 50px rgba(0, 80, 200, 0.45);
+        }
+
+        .base-ring {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 72%;
+            height: 14px;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at center,
+            rgba(0, 200, 255, 0.6) 0%,
+            rgba(0, 130, 220, 0.28) 42%,
+            transparent 76%);
+            filter: blur(2px);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .core-subs {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
+            gap: 44px;
+            padding: 6px 0 10px;
+            z-index: 5;
+        }
+        .sub-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sub-label {
+            font-size: 11px;
+            color: #7fa8cc;
+            letter-spacing: 2px;
+            margin-bottom: 2px;
+        }
+        .sub-value {
+            font-size: 18px;
+            color: #00eaff;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(0, 220, 245, 0.9), 0 0 18px rgba(0, 140, 230, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="hdeco hdeco-left">
+        <span class="binary">1011010010111010101</span>
+        <span class="dots"></span>
+    </div>
+
+    <h1 class="title">人货场·电商实时数据大屏</h1>
+
+    <div class="hdeco hdeco-right">
+        <span class="binary">1010100101110100101</span>
+        <span class="dots"></span>
+    </div>
+
+    <svg class="hline" viewBox="0 0 1200 44" preserveAspectRatio="none">
+        <path d="M0,36 L385,36 L425,28 L775,28 L815,36 L1200,36"
+              fill="none" stroke="#00dfff" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+        <path d="M425,28 L775,28"
+              fill="none" stroke="#7ff0ff" stroke-width="1.8" vector-effect="non-scaling-stroke" opacity="0.9"/>
+        <path d="M0,42 L1200,42"
+              fill="none" stroke="rgba(0, 140, 230, 0.22)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    </svg>
+</header>
+
+<div class="container">
+    <!-- 左列 -->
+    <div class="column">
+        <div class="panel" style="flex: 2.3;">
+            <div class="panel-title">用户信息</div>
+            <div id="profileChart" class="chart"></div>
+        </div>
+        <div class="panel" style="flex: 1.6;">
+            <div class="panel-title">用户行为转化</div>
+            <div id="behaviorFunnelChart" class="chart"></div>
+        </div>
+    </div>
+
+    <!-- 中列 -->
+    <div class="column">
+        <div class="panel core-panel" style="flex: 1.65;">
+            <div class="core-wrap">
+                <svg class="ring-svg" viewBox="0 0 200 200">
+                    <circle cx="100" cy="100" r="93" fill="none"
+                            stroke="rgba(80, 200, 255, 0.22)" stroke-width="1.2"/>
+                    <circle cx="100" cy="100" r="87" fill="none"
+                            stroke="rgba(90, 210, 255, 0.7)" stroke-width="2.2"
+                            stroke-dasharray="6 7"/>
+                </svg>
+
+                <span class="tri tri-tl"></span>
+                <span class="tri tri-tr"></span>
+                <span class="tri tri-bl"></span>
+                <span class="tri tri-br"></span>
+
+                <svg class="hex hex-left" viewBox="0 0 60 60">
+                    <polygon points="30,3 54,16 54,44 30,57 6,44 6,16"
+                             fill="none" stroke="rgba(80,200,255,0.75)" stroke-width="1.4"/>
+                    <polygon points="30,12 46,21 46,39 30,48 14,39 14,21"
+                             fill="none" stroke="rgba(80,200,255,0.3)" stroke-width="0.8"/>
+                    <circle cx="30" cy="30" r="2.6" fill="#00eaff"/>
+                </svg>
+                <svg class="hex hex-right" viewBox="0 0 60 60">
+                    <polygon points="30,3 54,16 54,44 30,57 6,44 6,16"
+                             fill="none" stroke="rgba(80,200,255,0.75)" stroke-width="1.4"/>
+                    <polygon points="30,12 46,21 46,39 30,48 14,39 14,21"
+                             fill="none" stroke="rgba(80,200,255,0.3)" stroke-width="0.8"/>
+                    <circle cx="30" cy="30" r="2.6" fill="#00eaff"/>
+                </svg>
+
+                <canvas id="globeCanvas"></canvas>
+
+                <div class="core-text">
+                    <div class="core-label">累计成交额</div>
+                    <div class="core-value" id="kpiGmv">--</div>
+                </div>
+
+                <div class="base-ring"></div>
+            </div>
+
+            <div class="core-subs">
+                <div class="sub-item">
+                    <span class="sub-label">累计订单数</span>
+                    <span class="sub-value" id="kpiOrder">--</span>
+                </div>
+                <div class="sub-item">
+                    <span class="sub-label">累计用户数</span>
+                    <span class="sub-value" id="kpiUser">--</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="flex: 1;">
+            <div class="panel-title">城市交易额排行</div>
+            <div id="cityChart" class="chart"></div>
+        </div>
+        <div class="panel" style="flex: 1;">
+            <div class="panel-title">平台交易对比</div>
+            <div id="platformChart" class="chart"></div>
+        </div>
+    </div>
+
+    <!-- 右列 -->
+    <div class="column">
+        <div class="panel">
+            <div class="panel-title">商品品类分析</div>
+            <div id="categoryChart" class="chart"></div>
+        </div>
+        <div class="panel">
+            <div class="panel-title">商品品牌分析</div>
+            <div id="brandChart" class="chart"></div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/main.js"></script>
+</body>
+</html>
